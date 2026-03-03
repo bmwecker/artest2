@@ -120,13 +120,13 @@
             const scene = new BABYLON.Scene(engine);
             scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // прозрачный для AR
 
-            // Камера (обязательна для рендера, но будет отключена)
-            const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 0, 0), scene);
-            camera.setEnabled(false);
-
             // Свет
             const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
             light.intensity = 0.8;
+
+            // Камера, которая будет использоваться XR
+            const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 0, 0), scene);
+            camera.setEnabled(false); // XR будет её контролировать
 
             // --- Загрузка модели (ваш файл) ---
             let userModel = null;
@@ -172,13 +172,14 @@
                 }
 
                 try {
-                    // Создаём XR-опыт
+                    // Создаём XR-опыт с правильной камерой и reference space
                     xrExperience = await scene.createDefaultXRExperienceAsync({
                         uiOptions: {
                             sessionMode: 'immersive-ar',
-                            referenceSpaceType: 'local'
+                            referenceSpaceType: 'unbounded' // рекомендуется для AR
                         },
-                        optionalFeatures: true
+                        optionalFeatures: true,
+                        camera: camera // передаём камеру
                     });
 
                     // Включаем hit test
