@@ -2,21 +2,21 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR AR минимальный</title>
+    <title>WebXR AR minimal</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: black; color: #FCD780; font-family: system-ui; }
+        body { margin:0; overflow:hidden; background:black; color:#FCD780; font-family:system-ui; }
         #info {
-            position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); border: 2px solid #FCD780; border-radius: 60px;
-            padding: 12px 30px; font-size: min(28px,5vw); z-index: 1000;
+            position:fixed; top:30px; left:50%; transform:translateX(-50%);
+            background:rgba(0,0,0,0.7); border:2px solid #FCD780; border-radius:60px;
+            padding:12px 30px; font-size:min(28px,5vw); z-index:1000;
         }
         #arButton {
-            position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); border: 3px solid #FCD780; border-radius: 60px;
-            padding: 20px 60px; font-size: 36px; color: #FCD780; z-index: 1000;
-            cursor: pointer;
+            position:fixed; bottom:60px; left:50%; transform:translateX(-50%);
+            background:rgba(0,0,0,0.7); border:3px solid #FCD780; border-radius:60px;
+            padding:20px 60px; font-size:36px; color:#FCD780; z-index:1000;
+            cursor:pointer;
         }
     </style>
 </head>
@@ -34,15 +34,12 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0,0,0,0);
 
-        // Камера (будет заменена XR)
         const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0,0,0), scene);
         camera.setEnabled(false);
 
-        // Свет
         const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0,1,0), scene);
         light.intensity = 0.8;
 
-        // Модель (загружаем заранее)
         let model;
         BABYLON.SceneLoader.ImportMeshAsync('', '', 'textured_mesh.glb', scene).then(result => {
             model = result.meshes[0];
@@ -51,7 +48,6 @@
             console.log('Модель загружена');
         });
 
-        // Прицел
         const reticleMat = new BABYLON.StandardMaterial('reticleMat', scene);
         reticleMat.emissiveColor = new BABYLON.Color3(0.99,0.84,0.5);
         reticleMat.alpha = 0.6;
@@ -70,15 +66,22 @@
             }
 
             try {
-                // Запрос XR-сессии с минимальными требованиями
+                // Создаём XR-опыт с явным запросом hit-test
                 const xr = await scene.createDefaultXRExperienceAsync({
-                    uiOptions: { sessionMode: 'immersive-ar', referenceSpaceType: 'local' },
-                    optionalFeatures: false, // не запрашиваем лишние фичи
+                    uiOptions: { 
+                        sessionMode: 'immersive-ar', 
+                        referenceSpaceType: 'local' 
+                    },
+                    optionalFeatures: ['hit-test'], // обязательно!
                     camera: camera
                 });
 
-                // Включаем hit test
-                const hitTest = xr.featuresManager.enableFeature(BABYLON.WebXRHitTest, 'latest');
+                // Ждём полной инициализации сессии (нужно для featuresManager)
+                await xr.baseExperience.sessionManager.initializeSessionAsync();
+
+                // Включаем hit test через baseExperience.featuresManager
+                const hitTest = xr.baseExperience.featuresManager.enableFeature(BABYLON.WebXRHitTest, 'latest');
+
                 hitTest.onHitTestResultObservable.add(results => {
                     if (results.length) {
                         const pose = results[0].pose;
@@ -91,7 +94,7 @@
                     }
                 });
 
-                // Вход в AR
+                // Входим в AR
                 await xr.baseExperience.enterXRAsync('immersive-ar', 'unbounded');
                 infoDiv.innerHTML = '🔍 Ищу поверхность...';
 
