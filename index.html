@@ -120,10 +120,9 @@
                 throw new Error('Нет поддерживаемого reference space');
             }
 
-            // Передаём сессию в рендерер и устанавливаем reference space
+            // Передаём сессию в рендерер
             renderer.xr.setSession(session);
-            renderer.xr.setReferenceSpace(space);
-            xrReferenceSpace = space;
+            xrReferenceSpace = space; // сохраняем для hit test
 
             // Запрашиваем hit test source
             try {
