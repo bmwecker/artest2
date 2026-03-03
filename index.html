@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>WebXR тест (куб)</title>
+  <title>WebXR Hit Test (рабочий)</title>
   <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; background: black; }
@@ -16,10 +16,11 @@
       position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
       color: #FCD780; font-size: 24px; background: rgba(0,0,0,0.6);
       padding: 10px 25px; border-radius: 60px; border: 1px solid #FCD780; z-index: 1000;
+      white-space: nowrap;
     }
     @media (max-width: 480px) {
       #ar-button { font-size: 20px; padding: 15px 30px; }
-      #info { font-size: 18px; padding: 8px 16px; top: 20px; }
+      #info { font-size: 18px; padding: 8px 16px; top: 20px; white-space: normal; width: 90%; }
     }
   </style>
 </head>
@@ -28,11 +29,11 @@
   <button id="ar-button">🚀 СТАРТ AR</button>
 
   <script>
-    (function() {
+    (async function() {
       const arButton = document.getElementById('ar-button');
       const infoDiv = document.getElementById('info');
 
-      // --- Проверка iOS ---
+      // --- iOS не поддерживает WebXR ---
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       if (isIOS) {
         infoDiv.innerHTML = '📱 WebXR не работает на iOS. Используйте Android + Chrome.';
@@ -41,88 +42,83 @@
         return;
       }
 
-      // --- Переменные Three.js и WebXR ---
+      // --- Глобальные переменные Three.js и WebXR ---
       let scene, camera, renderer, reticle;
       let xrSession = null, xrRefSpace = null, xrHitTestSource = null;
 
-      // --- Создаём простой куб как прицел ---
+      // --- Простой куб для прицела и объектов ---
       function createCube(color, size = 0.1) {
         const geometry = new THREE.BoxGeometry(size, size, size);
         const material = new THREE.MeshStandardMaterial({ color: color, emissive: 0x222222 });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
-        return cube;
+        return new THREE.Mesh(geometry, material);
       }
 
-      // --- Инициализация сцены Three.js ---
+      // --- Инициализация Three.js ---
       function initThree() {
         scene = new THREE.Scene();
-        // Добавляем свет
-        const ambient = new THREE.AmbientLight(0xffffff, 1.5);
-        scene.add(ambient);
+        // Базовое освещение
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
         dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
 
-        // Создаём прицел (зелёный куб)
+        // Прицел (зелёный куб)
         reticle = createCube(0x00ff00, 0.15);
         reticle.visible = false;
         scene.add(reticle);
       }
 
-      // --- Запуск WebXR сессии ---
+      // --- Запуск AR-сессии ---
       async function startAR() {
         if (!navigator.xr) {
           infoDiv.innerHTML = '❌ WebXR не поддерживается';
           return;
         }
 
-        // Проверка поддержки AR
+        infoDiv.innerHTML = '⏳ Проверка поддержки AR...';
         const supported = await navigator.xr.isSessionSupported('immersive-ar');
         if (!supported) {
-          infoDiv.innerHTML = '❌ AR не поддерживается. Попробуйте Chrome на Android с ARCore.';
+          infoDiv.innerHTML = '❌ AR не поддерживается. Установите ARCore и обновите Chrome.';
           return;
         }
 
-        // Запрос сессии
+        infoDiv.innerHTML = '⏳ Запрос сессии...';
         const session = await navigator.xr.requestSession('immersive-ar', {
           requiredFeatures: ['hit-test']
         });
         xrSession = session;
 
-        // Настройка рендерера
+        // --- Создание WebGL-рендерера и привязка к сессии ---
         const canvas = document.createElement('canvas');
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(canvas);
 
-        // Помечаем контекст как совместимый с XR
         const gl = renderer.getContext();
-        await gl.makeXRCompatible(); // <-- ИСПРАВЛЕНИЕ
+        await gl.makeXRCompatible(); // обязательно!
 
-        // Подключение слоя XR
         const glLayer = new XRWebGLLayer(session, gl);
         session.updateRenderState({ baseLayer: glLayer });
 
-        // Reference space
-        const viewerSpace = await session.requestReferenceSpace('viewer');
+        // --- Reference space ---
+        // Используем 'local' для мира, и 'viewer' для hit test
         const refSpace = await session.requestReferenceSpace('local');
         xrRefSpace = refSpace;
 
-        // Hit test source
+        const viewerSpace = await session.requestReferenceSpace('viewer');
         const hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
         xrHitTestSource = hitTestSource;
 
-        // Камера
+        // --- Камера Three.js ---
         camera = new THREE.PerspectiveCamera();
         camera.matrixAutoUpdate = false;
 
-        // Запуск цикла
+        // --- Запуск цикла рендеринга ---
         session.requestAnimationFrame(onXRFrame);
 
-        // Обработка касания
+        // --- Обработка касания для размещения объекта ---
         session.addEventListener('select', onSelect);
 
         infoDiv.innerHTML = '🔍 Водите камерой, чтобы найти плоскость';
@@ -137,15 +133,16 @@
         const pose = frame.getViewerPose(xrRefSpace);
         if (!pose) return;
 
-        // Обновляем камеру
+        // Настройка viewport под каждый глаз (для AR обычно один view)
         const view = pose.views[0];
         const viewport = xrSession.renderState.baseLayer.getViewport(view);
         renderer.setSize(viewport.width, viewport.height);
+
         camera.matrix.fromArray(view.transform.matrix);
         camera.projectionMatrix.fromArray(view.projectionMatrix);
         camera.updateMatrixWorld(true);
 
-        // Hit test
+        // --- Hit test ---
         if (xrHitTestSource) {
           const hitTestResults = frame.getHitTestResults(xrHitTestSource);
           if (hitTestResults.length > 0) {
@@ -166,10 +163,9 @@
         renderer.render(scene, camera);
       }
 
-      // --- Обработка касания (размещение объекта) ---
+      // --- Обработка касания (размещение куба) ---
       function onSelect(event) {
         if (!reticle.visible) return;
-        // Создаём новый красный куб в позиции прицела
         const cube = createCube(0xff0000, 0.2);
         cube.position.copy(reticle.position);
         cube.quaternion.copy(reticle.quaternion);
@@ -177,16 +173,16 @@
         infoDiv.innerHTML = '✅ Куб размещён! Можно ставить ещё.';
       }
 
-      // --- Запуск по кнопке ---
+      // --- Привязка к кнопке ---
       arButton.addEventListener('click', () => {
         initThree();
         startAR().catch(err => {
-          console.error('Ошибка AR:', err);
+          console.error('Ошибка запуска AR:', err);
           infoDiv.innerHTML = '❌ Ошибка: ' + err.message;
         });
       });
 
-      // --- Обработка ресайза ---
+      // --- Resize handler (не влияет на AR, но для корректности) ---
       window.addEventListener('resize', () => {
         if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
       });
