@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebXR AR с размещением по касанию</title>
+  <!-- Three.js и GLTFLoader -->
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: black;
+    }
+    /* Кнопка AR и кнопка на сайт */
+    #ar-button, #site-link {
+      position: fixed;
+      z-index: 1000;
+      border: 2px solid rgba(252, 215, 128, 0.5);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      color: #FCD780;
+      border-radius: 60px;
+      padding: 12px 30px;
+      font-size: 28px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      white-space: nowrap;
+    }
+    #ar-button {
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #ar-button:hover {
+      border-color: #FCD780;
+      background: rgba(30, 30, 30, 0.8);
+      transform: translateX(-50%) scale(1.02);
+    }
+    #site-link {
+      top: 120px;
+      right: 20px;
+    }
+    #site-link:hover {
+      border-color: #FCD780;
+      background: rgba(30, 30, 30, 0.8);
+    }
+    @media (max-width: 480px) {
+      #ar-button { font-size: 20px; padding: 10px 20px; bottom: 40px; }
+      #site-link { font-size: 20px; padding: 8px 16px; top: 100px; right: 10px; }
+    }
+    /* Подсказка */
+    #info {
+      position: fixed;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #FCD780;
+      font-size: 24px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 25px;
+      border-radius: 60px;
+      border: 1px solid rgba(252, 215, 128, 0.3);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      white-space: nowrap;
+    }
+    @media (max-width: 480px) {
+      #info { font-size: 18px; padding: 6px 15px; top: 20px; white-space: normal; width: 90%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div id="info">⚡ Найди поверхность, затем коснись</div>
+  <a id="site-link" href="https://alef-bet.tech" target="_blank" rel="noopener noreferrer">
+    <span>🔗</span> Alef-Bet
+  </a>
+  <button id="ar-button">📱 СТАРТ AR</button>
+
+  <!-- Тут будет canvas, который создаст Three.js -->
+  <script>
+    (function() {
+      // --- Элементы интерфейса ---
+      const arButton = document.getElementById('ar-button');
+      const infoDiv = document.getElementById('info');
+
+      // --- Переменные Three.js и WebXR ---
+      let scene, camera, renderer, reticle, model;
+      let xrSession = null;
+      let xrRefSpace = null;
+      let xrHitTestSource = null;
+      let modelLoaded = false;
+
+      // --- Загрузка модели (ваш файл) ---
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        'textured_mesh.glb', // ЗАМЕНИТЕ НА ПУТЬ К ВАШЕЙ МОДЕЛИ
+        (gltf) => {
+          model = gltf.scene;
+          model.scale.set(0.2, 0.2, 0.2); // Подберите масштаб под вашу модель
+          model.visible = false; // Скрыта, пока не разместим
+          modelLoaded = true;
+          console.log('Модель загружена');
+        },
+        undefined,
+        (error) => {
+          console.error('Ошибка загрузки модели:', error);
+          infoDiv.innerHTML = '❌ Ошибка загрузки модели';
+        }
+      );
+
+      // --- Загрузка прицела (стандартный reticle из WebXR samples) ---
+      let reticleModel;
+      loader.load(
+        'https://immersive-web.github.io/webxr-samples/media/gltf/reticle/reticle.gltf',
+        (gltf) => {
+          reticleModel = gltf.scene;
+          reticleModel.visible = false;
+          reticleModel.scale.set(0.1, 0.1, 0.1); // Подгон под ваш мир
+          console.log('Прицел загружен');
+        },
+        undefined,
+        (error) => console.error('Ошибка загрузки прицела:', error)
+      );
+
+      // --- Настройка сцены ---
+      function initThree() {
+        scene = new THREE.Scene();
+        // Добавляем немного света, чтобы модель была видна
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+      }
+
+      // --- Инициализация WebXR сессии ---
+      async function startAR() {
+        if (!navigator.xr) {
+          infoDiv.innerHTML = '❌ WebXR не поддерживается';
+          return;
+        }
+
+        // Проверяем поддержку immersive-ar
+        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (!supported) {
+          infoDiv.innerHTML = '❌ AR не поддерживается на этом устройстве/браузере. Попробуйте Chrome на Android.';
+          return;
+        }
+
+        // Создаём сессию
+        const session = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test'] // [citation:1][citation:4]
+        });
+        xrSession = session;
+
+        // Настраиваем WebGL рендерер
+        const canvas = document.createElement('canvas');
+        renderer = new THREE.WebGLRenderer({
+          canvas: canvas,
+          alpha: true,
+          preserveDrawingBuffer: true,
+          context: null,
+          antialias: true
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(canvas); // Добавляем canvas на страницу
+
+        // Передаём рендерер в сессию
+        const glLayer = new XRWebGLLayer(session, renderer.getContext());
+        session.updateRenderState({ baseLayer: glLayer });
+
+        // Получаем reference space
+        const viewerSpace = await session.requestReferenceSpace('viewer');
+        const refSpace = await session.requestReferenceSpace('local');
+        xrRefSpace = refSpace;
+
+        // Создаём источник hit test
+        const hitTestSource = await session.requestHitTestSource({ space: viewerSpace }); // [citation:1][citation:4]
+        xrHitTestSource = hitTestSource;
+
+        // Настраиваем камеру Three.js
+        camera = new THREE.PerspectiveCamera();
+        camera.matrixAutoUpdate = false;
+
+        // Добавляем прицел в сцену, если он загружен
+        if (reticleModel) {
+          reticle = reticleModel;
+          scene.add(reticle);
+        }
+
+        // Добавляем модель в сцену
+        if (model) scene.add(model);
+
+        // Запускаем цикл рендеринга
+        session.requestAnimationFrame(onXRFrame);
+
+        // Слушаем событие касания для размещения объекта
+        session.addEventListener('select', onSelect); // [citation:1][citation:7]
+
+        infoDiv.innerHTML = '🔍 Водите камерой, чтобы найти плоскость';
+        arButton.style.display = 'none'; // Прячем кнопку старта
+      }
+
+      // --- Цикл рендеринга ---
+      function onXRFrame(time, frame) {
+        if (!xrSession) return;
+
+        // Запрашиваем следующий кадр
+        xrSession.requestAnimationFrame(onXRFrame);
+
+        // Получаем позу зрителя
+        const pose = frame.getViewerPose(xrRefSpace);
+        if (!pose) return;
+
+        // Настраиваем камеру и рендерер
+        const glLayer = xrSession.renderState.baseLayer;
+        const viewport = glLayer.getViewport(pose.views[0]);
+        renderer.setSize(viewport.width, viewport.height);
+
+        // Обновляем камеру
+        const view = pose.views[0];
+        camera.matrix.fromArray(view.transform.matrix);
+        camera.projectionMatrix.fromArray(view.projectionMatrix);
+        camera.updateMatrixWorld(true);
+
+        // --- Hit Test ---
+        if (xrHitTestSource) {
+          const hitTestResults = frame.getHitTestResults(xrHitTestSource); // [citation:1][citation:4]
+          if (hitTestResults.length > 0 && reticle) {
+            const hitPose = hitTestResults[0].getPose(xrRefSpace);
+            if (hitPose) {
+              // Перемещаем прицел
+              reticle.position.copy(hitPose.transform.position);
+              reticle.quaternion.copy(hitPose.transform.orientation);
+              reticle.visible = true;
+              infoDiv.innerHTML = '✨ Коснитесь экрана, чтобы поставить объект';
+            }
+          } else {
+            if (reticle) reticle.visible = false;
+          }
+        }
+
+        // Рендерим сцену
+        renderer.render(scene, camera);
+      }
+
+      // --- Обработка касания (размещение объекта) ---
+      function onSelect(event) {
+        if (!reticle || !reticle.visible || !model) return; // Ждём, пока прицел виден и модель загружена
+
+        // Клонируем модель, чтобы можно было ставить несколько объектов (опционально)
+        const newModel = model.clone();
+        newModel.position.copy(reticle.position);
+        newModel.quaternion.copy(reticle.quaternion);
+        newModel.visible = true;
+        scene.add(newModel);
+
+        infoDiv.innerHTML = '✅ Объект размещён! Можете ставить ещё.';
+      }
+
+      // --- Запуск по кнопке ---
+      arButton.addEventListener('click', () => {
+        initThree();
+        startAR().catch(err => {
+          console.error('Ошибка запуска AR:', err);
+          infoDiv.innerHTML = '❌ Ошибка запуска AR';
+        });
+      });
+
+      // --- Адаптация размера окна (не обязательно для AR, но для предпросмотра) ---
+      window.addEventListener('resize', () => {
+        if (renderer) {
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+      });
+
+      // --- Предупреждение для iOS ---
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        infoDiv.innerHTML = '📱 На iOS AR не работает. Используйте Android + Chrome.';
+        arButton.disabled = true;
+        arButton.style.opacity = '0.5';
+      }
+    })();
+  </script>
+</body>
+</html>
