@@ -42,10 +42,10 @@
       }
 
       // --- Переменные Three.js и WebXR ---
-      let scene, camera, renderer, reticle, placedObject;
+      let scene, camera, renderer, reticle;
       let xrSession = null, xrRefSpace = null, xrHitTestSource = null;
 
-      // --- Создаём простой куб как прицел и как объект для размещения ---
+      // --- Создаём простой куб как прицел ---
       function createCube(color, size = 0.1) {
         const geometry = new THREE.BoxGeometry(size, size, size);
         const material = new THREE.MeshStandardMaterial({ color: color, emissive: 0x222222 });
@@ -69,8 +69,6 @@
         reticle = createCube(0x00ff00, 0.15);
         reticle.visible = false;
         scene.add(reticle);
-
-        // Создаём объект для размещения (красный куб) — пока не в сцене, будем клонировать при касании
       }
 
       // --- Запуск WebXR сессии ---
@@ -100,8 +98,12 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(canvas);
 
+        // Помечаем контекст как совместимый с XR
+        const gl = renderer.getContext();
+        await gl.makeXRCompatible(); // <-- ИСПРАВЛЕНИЕ
+
         // Подключение слоя XR
-        const glLayer = new XRWebGLLayer(session, renderer.getContext());
+        const glLayer = new XRWebGLLayer(session, gl);
         session.updateRenderState({ baseLayer: glLayer });
 
         // Reference space
