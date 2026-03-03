@@ -107,9 +107,11 @@
             // Перебираем поддерживаемые reference space типы
             const spaceTypes = ['unbounded', 'local-floor', 'local'];
             let space = null;
+            let usedType = null;
             for (const type of spaceTypes) {
                 try {
                     space = await session.requestReferenceSpace(type);
+                    usedType = type;
                     console.log(`✅ Используем reference space: ${type}`);
                     break;
                 } catch (e) {
@@ -120,6 +122,8 @@
                 throw new Error('Нет поддерживаемого reference space');
             }
 
+            // Устанавливаем тип reference space в рендерере, чтобы Three.js не пытался запросить неподдерживаемый
+            renderer.xr.setReferenceSpaceType(usedType);
             // Передаём сессию в рендерер
             renderer.xr.setSession(session);
             xrReferenceSpace = space; // сохраняем для hit test
