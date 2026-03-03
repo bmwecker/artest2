@@ -47,7 +47,8 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.xr.enabled = true; // включаем WebXR
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType('unbounded'); // <-- важно: unbounded для AR
         document.body.appendChild(renderer.domElement);
 
         // Свет
@@ -77,10 +78,9 @@
         reticle.visible = false;
         scene.add(reticle);
 
-        // --- Переменные для WebXR ---
+        // --- Переменные для hit test ---
         let hitTestSource = null;
-        let referenceSpace = null;
-        let xrSession = null;
+        let xrReferenceSpace = null;
 
         // --- Обработка клика по AR-кнопке ---
         arButton.addEventListener('click', () => {
@@ -106,45 +106,48 @@
         });
 
         function onSessionStarted(session) {
-            xrSession = session;
+            // Передаём сессию в рендерер
             renderer.xr.setSession(session);
 
-            // Создаём reference space
-            session.requestReferenceSpace('local').then((refSpace) => {
-                referenceSpace = refSpace;
+            // Получаем reference space из рендерера (он уже создан)
+            xrReferenceSpace = renderer.xr.getReferenceSpace();
 
-                // Запрашиваем hit test source
-                session.requestHitTestSource({ space: referenceSpace }).then((source) => {
-                    hitTestSource = source;
-                }).catch(err => {
-                    console.error('Ошибка hit test source', err);
-                    infoDiv.innerHTML = '❌ Не удалось инициализировать hit test';
-                });
-
-                // Обработка касания для размещения объекта
-                session.addEventListener('select', () => {
-                    if (reticle.visible && model) {
-                        // Клонируем модель и ставим в позицию прицела
-                        const placed = model.clone();
-                        placed.position.copy(reticle.position);
-                        placed.quaternion.copy(reticle.quaternion);
-                        placed.visible = true;
-                        scene.add(placed);
-                        infoDiv.innerHTML = '✅ Объект размещён';
-                    }
-                });
+            // Запрашиваем hit test source
+            session.requestHitTestSource({ space: xrReferenceSpace }).then((source) => {
+                hitTestSource = source;
+                infoDiv.innerHTML = '🔍 Ищу поверхность...';
+            }).catch(err => {
+                console.error('Ошибка hit test source', err);
+                infoDiv.innerHTML = '❌ Не удалось инициализировать hit test';
             });
 
-            infoDiv.innerHTML = '🔍 Ищу поверхность...';
+            // Обработка касания для размещения объекта
+            session.addEventListener('select', () => {
+                if (reticle.visible && model) {
+                    // Клонируем модель и ставим в позицию прицела
+                    const placed = model.clone();
+                    placed.position.copy(reticle.position);
+                    placed.quaternion.copy(reticle.quaternion);
+                    placed.visible = true;
+                    scene.add(placed);
+                    infoDiv.innerHTML = '✅ Объект размещён';
+                }
+            });
+
+            // Ловим ошибки сессии
+            session.addEventListener('end', () => {
+                infoDiv.innerHTML = '⚡ Сессия завершена. Нажми СТАРТ AR';
+                hitTestSource = null;
+            });
         }
 
         // --- Цикл рендеринга (выполняется для каждого кадра WebXR) ---
         renderer.setAnimationLoop((time, frame) => {
-            if (frame && hitTestSource && referenceSpace) {
+            if (frame && hitTestSource && xrReferenceSpace) {
                 // Получаем результаты hit test
                 const hitTestResults = frame.getHitTestResults(hitTestSource);
                 if (hitTestResults.length > 0) {
-                    const pose = hitTestResults[0].getPose(referenceSpace);
+                    const pose = hitTestResults[0].getPose(xrReferenceSpace);
                     if (pose) {
                         reticle.visible = true;
                         reticle.position.copy(pose.transform.position);
