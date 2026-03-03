@@ -33,7 +33,6 @@
 
     <script type="module">
         import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         const infoDiv = document.getElementById('info');
@@ -48,7 +47,6 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.xr.enabled = true;
-        renderer.xr.setReferenceSpaceType('unbounded'); // <-- важно: unbounded для AR
         document.body.appendChild(renderer.domElement);
 
         // Свет
@@ -105,21 +103,38 @@
             });
         });
 
-        function onSessionStarted(session) {
-            // Передаём сессию в рендерер
-            renderer.xr.setSession(session);
+        async function onSessionStarted(session) {
+            // Перебираем поддерживаемые reference space типы
+            const spaceTypes = ['unbounded', 'local-floor', 'local'];
+            let space = null;
+            for (const type of spaceTypes) {
+                try {
+                    space = await session.requestReferenceSpace(type);
+                    console.log(`✅ Используем reference space: ${type}`);
+                    break;
+                } catch (e) {
+                    console.warn(`❌ Reference space ${type} не поддерживается`, e);
+                }
+            }
+            if (!space) {
+                throw new Error('Нет поддерживаемого reference space');
+            }
 
-            // Получаем reference space из рендерера (он уже создан)
-            xrReferenceSpace = renderer.xr.getReferenceSpace();
+            // Передаём сессию в рендерер и устанавливаем reference space
+            renderer.xr.setSession(session);
+            renderer.xr.setReferenceSpace(space);
+            xrReferenceSpace = space;
 
             // Запрашиваем hit test source
-            session.requestHitTestSource({ space: xrReferenceSpace }).then((source) => {
+            try {
+                const source = await session.requestHitTestSource({ space: space });
                 hitTestSource = source;
                 infoDiv.innerHTML = '🔍 Ищу поверхность...';
-            }).catch(err => {
+            } catch (err) {
                 console.error('Ошибка hit test source', err);
                 infoDiv.innerHTML = '❌ Не удалось инициализировать hit test';
-            });
+                return;
+            }
 
             // Обработка касания для размещения объекта
             session.addEventListener('select', () => {
@@ -134,7 +149,6 @@
                 }
             });
 
-            // Ловим ошибки сессии
             session.addEventListener('end', () => {
                 infoDiv.innerHTML = '⚡ Сессия завершена. Нажми СТАРТ AR';
                 hitTestSource = null;
@@ -144,7 +158,6 @@
         // --- Цикл рендеринга (выполняется для каждого кадра WebXR) ---
         renderer.setAnimationLoop((time, frame) => {
             if (frame && hitTestSource && xrReferenceSpace) {
-                // Получаем результаты hit test
                 const hitTestResults = frame.getHitTestResults(hitTestSource);
                 if (hitTestResults.length > 0) {
                     const pose = hitTestResults[0].getPose(xrReferenceSpace);
