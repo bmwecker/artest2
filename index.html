@@ -1,137 +1,287 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>AR model with music</title>
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
-  <style>
-    body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; background: black; }
-    model-viewer { width: 100%; height: 100vh; background: black; }
-    .button-panel {
-      position: fixed; bottom: 60px; left: 0; right: 0;
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;
-      z-index: 10000; pointer-events: none; padding: 0 10px;
-    }
-    .button-panel button {
-      pointer-events: auto; width: min(270px, 40vw); aspect-ratio: 1/1; border-radius: 50%;
-      border: 2px solid rgba(252, 215, 128, 0.5); background: rgba(0, 0, 0, 0.6);
-      color: #FCD780; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 8px; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-      cursor: pointer; transition: all 0.2s ease;
-    }
-    .button-panel button:hover { border-color: #FCD780; background: rgba(20,20,20,0.8); transform: scale(1.02); }
-    .button-panel button:active { transform: scale(0.95); }
-    .button-panel button span:first-child { font-size: min(180px, 25vw); line-height: 1; }
-    .button-panel button span:last-child { font-size: min(48px, 7vw); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #FCD780; }
-    .button-panel button.music-off { border-color: rgba(252, 215, 128, 0.4); }
-    .button-panel button.music-on { border-color: #FCD780; background: rgba(252,215,128,0.1); box-shadow: 0 0 30px rgba(252,215,128,0.3); }
-    .note {
-      position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
-      color: #FCD780; font-size: min(32px, 6vw); background: rgba(0,0,0,0.6);
-      padding: 12px 30px; backdrop-filter: blur(4px); border-radius: 60px;
-      border: 1px solid rgba(252,215,128,0.3); z-index: 9999; white-space: nowrap;
-    }
-    @media (max-width: 480px) {
-      .note { top: 20px; font-size: 20px; padding: 8px 16px; white-space: normal; width: 90%; }
-    }
-    .site-link-button {
-      position: fixed; top: 120px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.7); backdrop-filter: blur(12px);
-      border: 3px solid rgba(252,215,128,0.6); border-radius: 80px;
-      padding: 24px 60px; color: #FCD780; font-size: min(48px,8vw);
-      font-weight: 600; text-decoration: none; display: flex; align-items: center;
-      gap: 20px; z-index: 10001; cursor: pointer; white-space: nowrap;
-    }
-    .site-link-button:hover { border-color: #FCD780; background: rgba(40,40,40,0.8); transform: translateX(-50%) scale(1.02); }
-    @media (max-width: 480px) {
-      .site-link-button { top: 100px; padding: 16px 30px; font-size: 32px; gap: 10px; }
-    }
-  </style>
+    <meta charset="utf-8">
+    <title>WebXR AR с Babylon.js</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: black;
+            color: #FCD780;
+            touch-action: none;
+        }
+        #info {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(252,215,128,0.5);
+            border-radius: 60px;
+            padding: 12px 30px;
+            font-size: min(28px, 5vw);
+            color: #FCD780;
+            z-index: 1000;
+            white-space: nowrap;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .button-panel {
+            position: fixed;
+            bottom: 60px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 1000;
+            pointer-events: none;
+            padding: 0 10px;
+        }
+        .button-panel button {
+            pointer-events: auto;
+            width: min(200px, 35vw);
+            height: min(200px, 35vw);
+            border-radius: 50%;
+            border: 3px solid rgba(252,215,128,0.6);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            color: #FCD780;
+            font-size: min(40px, 8vw);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .button-panel button:active {
+            transform: scale(0.95);
+        }
+        .button-panel button span:last-child {
+            font-size: min(24px, 4vw);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .button-panel button.music-on {
+            background: rgba(252,215,128,0.2);
+            border-color: #FCD780;
+        }
+        #site-link {
+            position: fixed;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(252,215,128,0.6);
+            border-radius: 80px;
+            padding: 16px 40px;
+            color: #FCD780;
+            font-size: min(36px, 6vw);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 1000;
+            white-space: nowrap;
+        }
+        @media (max-width: 480px) {
+            #info { font-size: 18px; padding: 8px 16px; top: 20px; white-space: normal; width: 90%; }
+            #site-link { top: 100px; padding: 12px 24px; font-size: 28px; }
+            .button-panel button { width: min(150px, 30vw); height: min(150px, 30vw); }
+        }
+    </style>
 </head>
 <body>
-  <div class="note" id="platformNote">
-    ⚡ Tap AR, then move object with finger. Use system camera button for photos.
-  </div>
+    <div id="info">⚡ Нажми AR, затем коснись для размещения</div>
+    <a id="site-link" href="https://alef-bet.tech" target="_blank">🔗 Alef-Bet</a>
+    <div class="button-panel">
+        <button id="arButton"><span>📱</span><span>AR</span></button>
+        <button id="musicButton" class="music-off"><span>🔇</span><span>MUSIC</span></button>
+        <button id="photoButton"><span>📸</span><span>PHOTO</span></button>
+    </div>
+    <audio id="bgMusic" loop preload="auto"><source src="music.mp3" type="audio/mpeg"></audio>
 
-  <a href="https://alef-bet.tech" target="_blank" rel="noopener noreferrer" class="site-link-button">
-    <span>🔗</span> Alef-Bet
-  </a>
+    <script>
+        (function() {
+            const canvas = document.createElement('canvas');
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            document.body.appendChild(canvas);
 
-  <model-viewer 
-    id="modelViewer"
-    src="textured_mesh.glb"
-    ar
-    ar-modes="webxr scene-viewer quick-look"
-    ar-placement="floor"
-    ar-scale="auto"
-    camera-controls
-    auto-rotate
-    environment-image="neutral"
-    shadow-intensity="1"
-    alt="3D model">
-  </model-viewer>
+            const engine = new BABYLON.Engine(canvas, true);
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // прозрачный для AR
 
-  <div class="button-panel">
-    <button id="arButton" class="ar-button"><span>📱</span><span>AR</span></button>
-    <button id="musicButton" class="music-off"><span>🔇</span><span>MUSIC</span></button>
-    <button id="photoButton"><span>📸</span><span>PHOTO</span></button>
-  </div>
+            // Камера
+            const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 0, 0), scene);
+            camera.setEnabled(false);
 
-  <audio id="bgMusic" loop preload="auto"><source src="music.mp3" type="audio/mpeg"></audio>
+            // Свет
+            const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.8;
 
-  <script>
-    (function() {
-      const modelViewer = document.getElementById('modelViewer');
-      const arButton = document.getElementById('arButton');
-      const musicButton = document.getElementById('musicButton');
-      const photoButton = document.getElementById('photoButton');
-      const bgMusic = document.getElementById('bgMusic');
-      const platformNote = document.getElementById('platformNote');
+            // Переменные
+            let xrHelper;
+            let hitTestAvailable = false;
+            let reticleMesh;
+            let modelContainer = new BABYLON.TransformNode('modelContainer');
+            let userModel; // загруженная модель
+            let placedObjects = [];
 
-      function updateARStatus() {
-        if (modelViewer.canActivateAR) arButton.disabled = false;
-        else { arButton.disabled = true; platformNote.innerHTML = '❌ AR not supported'; }
-      }
-      if (modelViewer.loaded) updateARStatus();
-      else modelViewer.addEventListener('load', updateARStatus);
+            // --- Загрузка модели (твоя) ---
+            BABYLON.SceneLoader.ImportMeshAsync('', '', 'textured_mesh.glb', scene).then(result => {
+                userModel = result.meshes[0];
+                userModel.setParent(modelContainer);
+                userModel.scaling.scaleInPlace(0.2); // подбери масштаб
+                userModel.setEnabled(false); // пока не размещаем
+                console.log('Модель загружена');
+            }).catch(err => {
+                console.error('Ошибка загрузки модели:', err);
+                document.getElementById('info').innerHTML = '❌ Ошибка загрузки модели';
+            });
 
-      arButton.addEventListener('click', () => {
-        if (modelViewer.canActivateAR) modelViewer.activateAR();
-        else alert('AR not available');
-      });
+            // --- Создание прицела (ретикль) ---
+            const reticleMat = new BABYLON.StandardMaterial('reticleMat', scene);
+            reticleMat.emissiveColor = new BABYLON.Color3(0.99, 0.84, 0.5); // #FCD780
+            reticleMat.alpha = 0.6;
+            reticleMesh = BABYLON.MeshBuilder.CreateTorus('reticle', { diameter: 0.2, thickness: 0.01 }, scene);
+            reticleMesh.material = reticleMat;
+            reticleMesh.rotation.x = Math.PI / 2; // лежит горизонтально
+            reticleMesh.setEnabled(false);
 
-      let isPlaying = false;
-      musicButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (isPlaying) {
-          bgMusic.pause();
-          musicButton.classList.replace('music-on','music-off');
-          musicButton.innerHTML = '<span>🔇</span><span>MUSIC</span>';
-        } else {
-          bgMusic.play().then(() => {
-            musicButton.classList.replace('music-off','music-on');
-            musicButton.innerHTML = '<span>🔊</span><span>MUSIC</span>';
-          }).catch(() => alert('Could not play music'));
-        }
-        isPlaying = !isPlaying;
-      });
+            // --- WebXR Helper ---
+            const xrHelperPromise = BABYLON.WebXRHelper.InitializeAsync(scene);
 
-      photoButton.addEventListener('click', () => {
-        platformNote.innerHTML = '📸 Capturing...';
-        try {
-          const data = modelViewer.toDataURL();
-          if (data) {
-            const link = document.createElement('a');
-            link.download = 'model.png'; link.href = data; link.click();
-            platformNote.innerHTML = '⚡ Tap AR, then use system camera button for photos.';
-          } else throw new Error();
-        } catch { alert('Screenshot failed'); }
-      });
+            // --- UI элементы ---
+            const infoDiv = document.getElementById('info');
+            const arButton = document.getElementById('arButton');
+            const musicButton = document.getElementById('musicButton');
+            const photoButton = document.getElementById('photoButton');
+            const bgMusic = document.getElementById('bgMusic');
+            let isMusicPlaying = false;
 
-      if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
-        platformNote.innerHTML = '📱 On iOS, use system camera button in AR. Music stops.';
-      }
-    })();
-  </script>
+            // --- Запуск AR по кнопке ---
+            arButton.addEventListener('click', async () => {
+                try {
+                    if (!xrHelper) {
+                        xrHelper = await xrHelperPromise;
+                    }
+
+                    // Настройки сессии immersive-ar с hit test
+                    const xrOptions = {
+                        optionalFeatures: ['hit-test'],
+                        onError: (error) => {
+                            console.error('XR error:', error);
+                            infoDiv.innerHTML = '❌ Ошибка AR';
+                        }
+                    };
+
+                    // Запуск сессии
+                    await xrHelper.enterXRAsync('immersive-ar', 'unbounded', xrOptions);
+                    infoDiv.innerHTML = '🔍 Ищу поверхность...';
+
+                    // Обработка hit test
+                    xrHelper.featuresManager.enableFeature('hit-test', 'latest', {
+                        enablePermanentHitTest: true,
+                        doNotRemoveDuplicateResults: true
+                    });
+
+                    const hitTest = xrHelper.getFeature('hit-test');
+                    if (hitTest) {
+                        hitTest.onHitTestResultObservable.add((results) => {
+                            if (results.length && userModel) {
+                                const pose = results[0].pose;
+                                if (pose) {
+                                    reticleMesh.setEnabled(true);
+                                    reticleMesh.position.copyFrom(pose.position);
+                                    reticleMesh.rotationQuaternion = pose.rotationQuaternion;
+                                    hitTestAvailable = true;
+                                    infoDiv.innerHTML = '✨ Коснись для размещения';
+                                } else {
+                                    reticleMesh.setEnabled(false);
+                                    hitTestAvailable = false;
+                                }
+                            } else {
+                                reticleMesh.setEnabled(false);
+                                hitTestAvailable = false;
+                            }
+                        });
+                    }
+
+                    // Обработка касания (select) для размещения
+                    xrHelper.input.onSelectEndedObservable.add(() => {
+                        if (hitTestAvailable && reticleMesh.isEnabled() && userModel) {
+                            // Клонируем модель и ставим в позицию прицела
+                            userModel.setEnabled(true);
+                            const newModel = userModel.clone('placedModel', null);
+                            newModel.setParent(null);
+                            newModel.position.copyFrom(reticleMesh.position);
+                            newModel.rotationQuaternion = reticleMesh.rotationQuaternion.clone();
+                            placedObjects.push(newModel);
+                            infoDiv.innerHTML = '✅ Объект размещён';
+                        }
+                    });
+
+                } catch (err) {
+                    console.error('AR start failed:', err);
+                    infoDiv.innerHTML = '❌ AR не запустился: ' + err.message;
+                }
+            });
+
+            // --- Музыка ---
+            musicButton.addEventListener('click', () => {
+                if (isMusicPlaying) {
+                    bgMusic.pause();
+                    musicButton.classList.remove('music-on');
+                    musicButton.innerHTML = '<span>🔇</span><span>MUSIC</span>';
+                } else {
+                    bgMusic.play().catch(e => alert('Музыка не играет: ' + e));
+                    musicButton.classList.add('music-on');
+                    musicButton.innerHTML = '<span>🔊</span><span>MUSIC</span>';
+                }
+                isMusicPlaying = !isMusicPlaying;
+            });
+
+            // --- PHOTO в предпросмотре (скриншот сцены) ---
+            photoButton.addEventListener('click', () => {
+                infoDiv.innerHTML = '📸 Снимок...';
+                // Простой способ: захват canvas
+                try {
+                    const dataURL = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = 'preview.png';
+                    link.href = dataURL;
+                    link.click();
+                    infoDiv.innerHTML = '⚡ Нажми AR, затем коснись для размещения';
+                } catch (e) {
+                    console.error(e);
+                    alert('Снимок не удался');
+                }
+            });
+
+            // --- Рендер цикл ---
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
+
+            // --- Resize ---
+            window.addEventListener('resize', () => engine.resize());
+
+            // --- iOS предупреждение ---
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) {
+                infoDiv.innerHTML = '📱 WebXR не на iOS. Используй Android.';
+                arButton.disabled = true;
+            }
+        })();
+    </script>
 </body>
 </html>
