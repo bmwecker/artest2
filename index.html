@@ -2,190 +2,283 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>WebXR Hit Test (рабочий)</title>
-  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <title>AR model with music</title>
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; background: black; }
-    #ar-button {
-      position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
-      background: #FCD780; color: black; border: none; border-radius: 60px;
-      padding: 20px 40px; font-size: 28px; font-weight: bold; z-index: 1000;
-      cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: black;
     }
-    #info {
-      position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
-      color: #FCD780; font-size: 24px; background: rgba(0,0,0,0.6);
-      padding: 10px 25px; border-radius: 60px; border: 1px solid #FCD780; z-index: 1000;
+    model-viewer {
+      width: 100%;
+      height: 100vh;
+      background: black;
+    }
+    .button-panel {
+      position: fixed;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      z-index: 10000;
+      pointer-events: none;
+      padding: 0 10px;
+    }
+    .button-panel button {
+      pointer-events: auto;
+      width: min(270px, 40vw);
+      height: auto;
+      aspect-ratio: 1/1;
+      border-radius: 50%;
+      border: 2px solid rgba(252, 215, 128, 0.5);
+      background: rgba(0, 0, 0, 0.6);
+      color: #FCD780;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .button-panel button:hover {
+      border-color: #FCD780;
+      background: rgba(20, 20, 20, 0.8);
+      transform: scale(1.02);
+    }
+    .button-panel button:active {
+      transform: scale(0.95);
+    }
+    .button-panel button span:first-child {
+      font-size: min(180px, 25vw);
+      line-height: 1;
+    }
+    .button-panel button span:last-child {
+      font-size: min(48px, 7vw);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.9;
+      color: #FCD780;
+    }
+    .button-panel button.music-off {
+      border-color: rgba(252, 215, 128, 0.4);
+    }
+    .button-panel button.music-on {
+      border-color: #FCD780;
+      background: rgba(252, 215, 128, 0.1);
+      box-shadow: 0 0 30px rgba(252, 215, 128, 0.3);
+    }
+    .button-panel button:disabled {
+      opacity: 0.4;
+      transform: none;
+      pointer-events: none;
+      border-color: rgba(255,255,255,0.3);
+    }
+    .note {
+      position: fixed;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      color: #FCD780;
+      font-size: min(32px, 6vw);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 12px 30px;
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      font-weight: 500;
+      border-radius: 60px;
+      border: 1px solid rgba(252, 215, 128, 0.3);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
       white-space: nowrap;
     }
     @media (max-width: 480px) {
-      #ar-button { font-size: 20px; padding: 15px 30px; }
-      #info { font-size: 18px; padding: 8px 16px; top: 20px; white-space: normal; width: 90%; }
+      .note {
+        top: 20px;
+        font-size: 20px;
+        padding: 8px 16px;
+        white-space: normal;
+        width: 90%;
+      }
+    }
+    /* Кнопка сайта Alef-Bet (овальная, вверху) */
+    .site-link-button {
+      position: fixed;
+      top: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      border: 3px solid rgba(252, 215, 128, 0.6);
+      border-radius: 80px;
+      padding: 24px 60px;
+      color: #FCD780;
+      font-size: min(48px, 8vw);
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      z-index: 10001;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      white-space: nowrap;
+    }
+    .site-link-button:hover {
+      border-color: #FCD780;
+      background: rgba(40, 40, 40, 0.8);
+      transform: translateX(-50%) scale(1.02);
+    }
+    @media (max-width: 480px) {
+      .site-link-button {
+        top: 100px;
+        padding: 16px 30px;
+        font-size: 32px;
+        gap: 10px;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="info">⚡ Нажми СТАРТ AR</div>
-  <button id="ar-button">🚀 СТАРТ AR</button>
+  <div class="note" id="platformNote">
+    ⚡ Tap AR, then move object with finger. Use system camera button for photos.
+  </div>
+
+  <a href="https://alef-bet.tech" target="_blank" rel="noopener noreferrer" class="site-link-button">
+    <span>🔗</span> Alef-Bet
+  </a>
+
+  <model-viewer 
+    id="modelViewer"
+    src="textured_mesh.glb"
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    ar-placement="floor"
+    ar-scale="auto"
+    camera-controls
+    auto-rotate
+    environment-image="neutral"
+    shadow-intensity="1"
+    alt="3D model">
+  </model-viewer>
+
+  <div class="button-panel">
+    <button id="arButton" class="ar-button">
+      <span>📱</span>
+      <span>AR</span>
+    </button>
+    <button id="musicButton" class="music-off">
+      <span>🔇</span>
+      <span>MUSIC</span>
+    </button>
+    <button id="photoButton">
+      <span>📸</span>
+      <span>PHOTO</span>
+    </button>
+  </div>
+
+  <audio id="bgMusic" loop preload="auto">
+    <source src="music.mp3" type="audio/mpeg">
+  </audio>
 
   <script>
-    (async function() {
-      const arButton = document.getElementById('ar-button');
-      const infoDiv = document.getElementById('info');
+    (function() {
+      const modelViewer = document.getElementById('modelViewer');
+      const arButton = document.getElementById('arButton');
+      const musicButton = document.getElementById('musicButton');
+      const photoButton = document.getElementById('photoButton');
+      const bgMusic = document.getElementById('bgMusic');
+      const platformNote = document.getElementById('platformNote');
 
-      // --- iOS не поддерживает WebXR ---
+      function updateARStatus() {
+        if (modelViewer.canActivateAR) {
+          arButton.disabled = false;
+        } else {
+          arButton.disabled = true;
+          platformNote.innerHTML = '❌ AR not supported on this device/browser.';
+        }
+      }
+
+      if (modelViewer.loaded) {
+        updateARStatus();
+      } else {
+        modelViewer.addEventListener('load', updateARStatus);
+      }
+
+      arButton.addEventListener('click', () => {
+        if (modelViewer.canActivateAR) {
+          modelViewer.activateAR();
+        } else {
+          alert('AR is not available on this device.');
+        }
+      });
+
+      // --- Music ---
+      let isPlaying = false;
+      musicButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isPlaying) {
+          bgMusic.pause();
+          musicButton.classList.remove('music-on');
+          musicButton.classList.add('music-off');
+          musicButton.innerHTML = '<span>🔇</span><span>MUSIC</span>';
+          isPlaying = false;
+        } else {
+          bgMusic.play()
+            .then(() => {
+              musicButton.classList.remove('music-off');
+              musicButton.classList.add('music-on');
+              musicButton.innerHTML = '<span>🔊</span><span>MUSIC</span>';
+              isPlaying = true;
+            })
+            .catch((err) => {
+              console.warn('Audio play failed:', err);
+              alert('Could not play music. Tap again.');
+            });
+        }
+      });
+
+      bgMusic.addEventListener('ended', () => {
+        isPlaying = false;
+        musicButton.classList.remove('music-on');
+        musicButton.classList.add('music-off');
+        musicButton.innerHTML = '<span>🔇</span><span>MUSIC</span>';
+      });
+
+      // --- Photo in preview ---
+      photoButton.addEventListener('click', () => {
+        platformNote.innerHTML = '📸 Capturing...';
+        try {
+          const screenshotData = modelViewer.toDataURL();
+          if (screenshotData) {
+            const link = document.createElement('a');
+            link.download = 'model-preview.png';
+            link.href = screenshotData;
+            link.click();
+            platformNote.innerHTML = '⚡ Tap AR, then use system camera button for photos.';
+          } else {
+            throw new Error('No screenshot');
+          }
+        } catch (e) {
+          console.error('Screenshot error:', e);
+          alert('Failed to capture. Try again.');
+          platformNote.innerHTML = '⚡ Tap AR, then use system camera button for photos.';
+        }
+      });
+
+      // --- iOS warning ---
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       if (isIOS) {
-        infoDiv.innerHTML = '📱 WebXR не работает на iOS. Используйте Android + Chrome.';
-        arButton.disabled = true;
-        arButton.style.opacity = '0.5';
-        return;
+        platformNote.innerHTML = '📱 On iOS, use system camera button in AR. Music stops in AR.';
       }
-
-      // --- Глобальные переменные Three.js и WebXR ---
-      let scene, camera, renderer, reticle;
-      let xrSession = null, xrRefSpace = null, xrHitTestSource = null;
-
-      // --- Простой куб для прицела и объектов ---
-      function createCube(color, size = 0.1) {
-        const geometry = new THREE.BoxGeometry(size, size, size);
-        const material = new THREE.MeshStandardMaterial({ color: color, emissive: 0x222222 });
-        return new THREE.Mesh(geometry, material);
-      }
-
-      // --- Инициализация Three.js ---
-      function initThree() {
-        scene = new THREE.Scene();
-        // Базовое освещение
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-        scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-        dirLight.position.set(5, 10, 7);
-        scene.add(dirLight);
-
-        // Прицел (зелёный куб)
-        reticle = createCube(0x00ff00, 0.15);
-        reticle.visible = false;
-        scene.add(reticle);
-      }
-
-      // --- Запуск AR-сессии ---
-      async function startAR() {
-        if (!navigator.xr) {
-          infoDiv.innerHTML = '❌ WebXR не поддерживается';
-          return;
-        }
-
-        infoDiv.innerHTML = '⏳ Проверка поддержки AR...';
-        const supported = await navigator.xr.isSessionSupported('immersive-ar');
-        if (!supported) {
-          infoDiv.innerHTML = '❌ AR не поддерживается. Установите ARCore и обновите Chrome.';
-          return;
-        }
-
-        infoDiv.innerHTML = '⏳ Запрос сессии...';
-        const session = await navigator.xr.requestSession('immersive-ar', {
-          requiredFeatures: ['hit-test']
-        });
-        xrSession = session;
-
-        // --- Создание WebGL-рендерера и привязка к сессии ---
-        const canvas = document.createElement('canvas');
-        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(canvas);
-
-        const gl = renderer.getContext();
-        await gl.makeXRCompatible(); // обязательно!
-
-        const glLayer = new XRWebGLLayer(session, gl);
-        session.updateRenderState({ baseLayer: glLayer });
-
-        // --- Reference space ---
-        // Используем 'local' для мира, и 'viewer' для hit test
-        const refSpace = await session.requestReferenceSpace('local');
-        xrRefSpace = refSpace;
-
-        const viewerSpace = await session.requestReferenceSpace('viewer');
-        const hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-        xrHitTestSource = hitTestSource;
-
-        // --- Камера Three.js ---
-        camera = new THREE.PerspectiveCamera();
-        camera.matrixAutoUpdate = false;
-
-        // --- Запуск цикла рендеринга ---
-        session.requestAnimationFrame(onXRFrame);
-
-        // --- Обработка касания для размещения объекта ---
-        session.addEventListener('select', onSelect);
-
-        infoDiv.innerHTML = '🔍 Водите камерой, чтобы найти плоскость';
-        arButton.style.display = 'none';
-      }
-
-      // --- Цикл рендеринга ---
-      function onXRFrame(time, frame) {
-        if (!xrSession) return;
-        xrSession.requestAnimationFrame(onXRFrame);
-
-        const pose = frame.getViewerPose(xrRefSpace);
-        if (!pose) return;
-
-        // Настройка viewport под каждый глаз (для AR обычно один view)
-        const view = pose.views[0];
-        const viewport = xrSession.renderState.baseLayer.getViewport(view);
-        renderer.setSize(viewport.width, viewport.height);
-
-        camera.matrix.fromArray(view.transform.matrix);
-        camera.projectionMatrix.fromArray(view.projectionMatrix);
-        camera.updateMatrixWorld(true);
-
-        // --- Hit test ---
-        if (xrHitTestSource) {
-          const hitTestResults = frame.getHitTestResults(xrHitTestSource);
-          if (hitTestResults.length > 0) {
-            const hitPose = hitTestResults[0].getPose(xrRefSpace);
-            if (hitPose) {
-              reticle.position.copy(hitPose.transform.position);
-              reticle.quaternion.copy(hitPose.transform.orientation);
-              reticle.visible = true;
-              infoDiv.innerHTML = '✨ Коснитесь экрана, чтобы поставить куб';
-            } else {
-              reticle.visible = false;
-            }
-          } else {
-            reticle.visible = false;
-          }
-        }
-
-        renderer.render(scene, camera);
-      }
-
-      // --- Обработка касания (размещение куба) ---
-      function onSelect(event) {
-        if (!reticle.visible) return;
-        const cube = createCube(0xff0000, 0.2);
-        cube.position.copy(reticle.position);
-        cube.quaternion.copy(reticle.quaternion);
-        scene.add(cube);
-        infoDiv.innerHTML = '✅ Куб размещён! Можно ставить ещё.';
-      }
-
-      // --- Привязка к кнопке ---
-      arButton.addEventListener('click', () => {
-        initThree();
-        startAR().catch(err => {
-          console.error('Ошибка запуска AR:', err);
-          infoDiv.innerHTML = '❌ Ошибка: ' + err.message;
-        });
-      });
-
-      // --- Resize handler (не влияет на AR, но для корректности) ---
-      window.addEventListener('resize', () => {
-        if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
-      });
     })();
   </script>
 </body>
