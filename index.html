@@ -2,276 +2,119 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebXR AR с Babylon.js</title>
+    <title>WebXR AR минимальный</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: black;
-            color: #FCD780;
-            touch-action: none;
-        }
+        body { margin: 0; overflow: hidden; background: black; color: #FCD780; font-family: system-ui; }
         #info {
-            position: fixed;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(252,215,128,0.5);
-            border-radius: 60px;
-            padding: 12px 30px;
-            font-size: min(28px, 5vw);
-            color: #FCD780;
-            z-index: 1000;
-            white-space: nowrap;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); border: 2px solid #FCD780; border-radius: 60px;
+            padding: 12px 30px; font-size: min(28px,5vw); z-index: 1000;
         }
-        .button-panel {
-            position: fixed;
-            bottom: 60px;
-            left: 0;
-            right: 0;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            z-index: 1000;
-            pointer-events: none;
-            padding: 0 10px;
-        }
-        .button-panel button {
-            pointer-events: auto;
-            width: min(200px, 35vw);
-            height: min(200px, 35vw);
-            border-radius: 50%;
-            border: 3px solid rgba(252,215,128,0.6);
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
-            color: #FCD780;
-            font-size: min(40px, 8vw);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+        #arButton {
+            position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); border: 3px solid #FCD780; border-radius: 60px;
+            padding: 20px 60px; font-size: 36px; color: #FCD780; z-index: 1000;
             cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        .button-panel button:active {
-            transform: scale(0.95);
-        }
-        .button-panel button span:last-child {
-            font-size: min(24px, 4vw);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .button-panel button.music-on {
-            background: rgba(252,215,128,0.2);
-            border-color: #FCD780;
-        }
-        #site-link {
-            position: fixed;
-            top: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(252,215,128,0.6);
-            border-radius: 80px;
-            padding: 16px 40px;
-            color: #FCD780;
-            font-size: min(36px, 6vw);
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            z-index: 1000;
-            white-space: nowrap;
-        }
-        @media (max-width: 480px) {
-            #info { font-size: 18px; padding: 8px 16px; top: 20px; white-space: normal; width: 90%; }
-            #site-link { top: 100px; padding: 12px 24px; font-size: 28px; }
-            .button-panel button { width: min(150px, 30vw); height: min(150px, 30vw); }
         }
     </style>
 </head>
 <body>
-    <div id="info">⚡ Нажми AR, затем коснись для размещения</div>
-    <a id="site-link" href="https://alef-bet.tech" target="_blank">🔗 Alef-Bet</a>
-    <div class="button-panel">
-        <button id="arButton"><span>📱</span><span>AR</span></button>
-        <button id="musicButton" class="music-off"><span>🔇</span><span>MUSIC</span></button>
-        <button id="photoButton"><span>📸</span><span>PHOTO</span></button>
-    </div>
-    <audio id="bgMusic" loop preload="auto"><source src="music.mp3" type="audio/mpeg"></audio>
+    <div id="info">⚡ Нажми СТАРТ AR</div>
+    <button id="arButton">📱 СТАРТ AR</button>
 
     <script>
-        (function() {
-            const canvas = document.createElement('canvas');
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            document.body.appendChild(canvas);
+        const canvas = document.createElement('canvas');
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        document.body.appendChild(canvas);
 
-            const engine = new BABYLON.Engine(canvas, true);
-            const scene = new BABYLON.Scene(engine);
-            scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // прозрачный для AR
+        const engine = new BABYLON.Engine(canvas, true);
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0,0,0,0);
 
-            // Свет
-            const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
-            light.intensity = 0.8;
+        // Камера (будет заменена XR)
+        const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0,0,0), scene);
+        camera.setEnabled(false);
 
-            // Камера, которая будет использоваться XR
-            const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 0, 0), scene);
-            camera.setEnabled(false); // XR будет её контролировать
+        // Свет
+        const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0,1,0), scene);
+        light.intensity = 0.8;
 
-            // --- Загрузка модели (ваш файл) ---
-            let userModel = null;
-            let modelLoaded = false;
-            BABYLON.SceneLoader.ImportMeshAsync('', '', 'textured_mesh.glb', scene).then(result => {
-                userModel = result.meshes[0];
-                userModel.scaling.scaleInPlace(0.2); // подберите масштаб
-                userModel.setEnabled(false);
-                modelLoaded = true;
-                console.log('✅ Модель загружена');
-            }).catch(err => {
-                console.error('❌ Ошибка загрузки модели:', err);
-                document.getElementById('info').innerHTML = '❌ Ошибка загрузки модели';
-            });
+        // Модель (загружаем заранее)
+        let model;
+        BABYLON.SceneLoader.ImportMeshAsync('', '', 'textured_mesh.glb', scene).then(result => {
+            model = result.meshes[0];
+            model.scaling.scaleInPlace(0.2); // подберите масштаб
+            model.setEnabled(false);
+            console.log('Модель загружена');
+        });
 
-            // --- Прицел (золотой тор) ---
-            const reticleMat = new BABYLON.StandardMaterial('reticleMat', scene);
-            reticleMat.emissiveColor = new BABYLON.Color3(0.99, 0.84, 0.5); // #FCD780
-            reticleMat.alpha = 0.6;
-            const reticleMesh = BABYLON.MeshBuilder.CreateTorus('reticle', { diameter: 0.2, thickness: 0.01 }, scene);
-            reticleMesh.material = reticleMat;
-            reticleMesh.rotation.x = Math.PI / 2; // горизонтально
-            reticleMesh.setEnabled(false);
+        // Прицел
+        const reticleMat = new BABYLON.StandardMaterial('reticleMat', scene);
+        reticleMat.emissiveColor = new BABYLON.Color3(0.99,0.84,0.5);
+        reticleMat.alpha = 0.6;
+        const reticle = BABYLON.MeshBuilder.CreateTorus('reticle', {diameter:0.2, thickness:0.01}, scene);
+        reticle.material = reticleMat;
+        reticle.rotation.x = Math.PI/2;
+        reticle.setEnabled(false);
 
-            // --- UI элементы ---
-            const infoDiv = document.getElementById('info');
-            const arButton = document.getElementById('arButton');
-            const musicButton = document.getElementById('musicButton');
-            const photoButton = document.getElementById('photoButton');
-            const bgMusic = document.getElementById('bgMusic');
-            let isMusicPlaying = false;
+        const infoDiv = document.getElementById('info');
+        const arButton = document.getElementById('arButton');
 
-            // --- Переменные XR ---
-            let xrExperience;
-            let hitTestFeature;
-            let hitTestAvailable = false;
-
-            // --- Запуск AR ---
-            arButton.addEventListener('click', async () => {
-                if (!modelLoaded) {
-                    infoDiv.innerHTML = '⏳ Модель ещё загружается...';
-                    return;
-                }
-
-                try {
-                    // Создаём XR-опыт с правильной камерой и reference space
-                    xrExperience = await scene.createDefaultXRExperienceAsync({
-                        uiOptions: {
-                            sessionMode: 'immersive-ar',
-                            referenceSpaceType: 'unbounded' // рекомендуется для AR
-                        },
-                        optionalFeatures: true,
-                        camera: camera // передаём камеру
-                    });
-
-                    // Включаем hit test
-                    hitTestFeature = xrExperience.featuresManager.enableFeature(BABYLON.WebXRHitTest, 'latest');
-                    if (!hitTestFeature) {
-                        throw new Error('Не удалось включить hit test');
-                    }
-                    console.log('✅ Hit test включён');
-
-                    // Подписываемся на результаты hit test
-                    hitTestFeature.onHitTestResultObservable.add((results) => {
-                        console.log(`📍 Hit test results: ${results.length}`);
-                        if (results.length > 0) {
-                            const pose = results[0].pose;
-                            if (pose) {
-                                reticleMesh.setEnabled(true);
-                                reticleMesh.position.copyFrom(pose.position);
-                                reticleMesh.rotationQuaternion = pose.rotationQuaternion;
-                                hitTestAvailable = true;
-                                infoDiv.innerHTML = '✨ Коснись для размещения';
-                            } else {
-                                reticleMesh.setEnabled(false);
-                                hitTestAvailable = false;
-                            }
-                        } else {
-                            reticleMesh.setEnabled(false);
-                            hitTestAvailable = false;
-                        }
-                    });
-
-                    // Входим в AR-сессию
-                    await xrExperience.baseExperience.enterXRAsync('immersive-ar', 'unbounded');
-                    infoDiv.innerHTML = '🔍 Ищу поверхность...';
-
-                    // Обработка касания для размещения объекта
-                    xrExperience.input.onSelectEndedObservable.add(() => {
-                        console.log(`👆 Касание: hitTestAvailable=${hitTestAvailable}, reticle visible=${reticleMesh.isEnabled()}`);
-                        if (hitTestAvailable && reticleMesh.isEnabled() && userModel) {
-                            // Клонируем модель и размещаем в позиции прицела
-                            const newModel = userModel.clone('placedModel', null);
-                            newModel.setParent(null);
-                            newModel.position.copyFrom(reticleMesh.position);
-                            newModel.rotationQuaternion = reticleMesh.rotationQuaternion.clone();
-                            scene.addMesh(newModel);
-                            infoDiv.innerHTML = '✅ Объект размещён';
-                        }
-                    });
-
-                } catch (err) {
-                    console.error('❌ Ошибка запуска AR:', err);
-                    infoDiv.innerHTML = '❌ AR не запустился: ' + err.message;
-                }
-            });
-
-            // --- Музыка ---
-            musicButton.addEventListener('click', () => {
-                if (isMusicPlaying) {
-                    bgMusic.pause();
-                    musicButton.classList.remove('music-on');
-                    musicButton.innerHTML = '<span>🔇</span><span>MUSIC</span>';
-                } else {
-                    bgMusic.play().catch(e => console.warn('Музыка не играет:', e));
-                    musicButton.classList.add('music-on');
-                    musicButton.innerHTML = '<span>🔊</span><span>MUSIC</span>';
-                }
-                isMusicPlaying = !isMusicPlaying;
-            });
-
-            // --- Фото в предпросмотре ---
-            photoButton.addEventListener('click', () => {
-                infoDiv.innerHTML = '📸 Снимок...';
-                try {
-                    // Используем активную камеру (или нашу заглушку) для скриншота
-                    BABYLON.Tools.CreateScreenshot(engine, scene.activeCamera || camera, { width: 1024 });
-                    infoDiv.innerHTML = '⚡ Нажми AR, затем коснись для размещения';
-                } catch (e) {
-                    console.error('Ошибка фото:', e);
-                    alert('Снимок не удался');
-                }
-            });
-
-            // --- Рендер цикл ---
-            engine.runRenderLoop(() => scene.render());
-            window.addEventListener('resize', () => engine.resize());
-
-            // --- iOS предупреждение ---
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            if (isIOS) {
-                infoDiv.innerHTML = '📱 WebXR не работает на iOS. Используйте Android.';
-                arButton.disabled = true;
+        arButton.addEventListener('click', async () => {
+            if (!model) {
+                infoDiv.innerHTML = '⏳ Модель загружается...';
+                return;
             }
-        })();
+
+            try {
+                // Запрос XR-сессии с минимальными требованиями
+                const xr = await scene.createDefaultXRExperienceAsync({
+                    uiOptions: { sessionMode: 'immersive-ar', referenceSpaceType: 'local' },
+                    optionalFeatures: false, // не запрашиваем лишние фичи
+                    camera: camera
+                });
+
+                // Включаем hit test
+                const hitTest = xr.featuresManager.enableFeature(BABYLON.WebXRHitTest, 'latest');
+                hitTest.onHitTestResultObservable.add(results => {
+                    if (results.length) {
+                        const pose = results[0].pose;
+                        reticle.setEnabled(true);
+                        reticle.position.copyFrom(pose.position);
+                        reticle.rotationQuaternion = pose.rotationQuaternion;
+                        infoDiv.innerHTML = '✨ Коснись для размещения';
+                    } else {
+                        reticle.setEnabled(false);
+                    }
+                });
+
+                // Вход в AR
+                await xr.baseExperience.enterXRAsync('immersive-ar', 'unbounded');
+                infoDiv.innerHTML = '🔍 Ищу поверхность...';
+
+                // Размещение по касанию
+                xr.input.onSelectEndedObservable.add(() => {
+                    if (reticle.isEnabled() && model) {
+                        const newModel = model.clone('placed');
+                        newModel.setParent(null);
+                        newModel.position.copyFrom(reticle.position);
+                        newModel.rotationQuaternion = reticle.rotationQuaternion.clone();
+                        scene.addMesh(newModel);
+                        infoDiv.innerHTML = '✅ Размещено';
+                    }
+                });
+
+            } catch (err) {
+                console.error(err);
+                infoDiv.innerHTML = '❌ Ошибка: ' + err.message;
+            }
+        });
+
+        engine.runRenderLoop(() => scene.render());
+        window.addEventListener('resize', () => engine.resize());
     </script>
 </body>
 </html>
