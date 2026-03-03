@@ -120,7 +120,7 @@
             const scene = new BABYLON.Scene(engine);
             scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // прозрачный для AR
 
-            // Камера
+            // Камера (будет заменена XR)
             const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 0, 0), scene);
             camera.setEnabled(false);
 
@@ -130,18 +130,21 @@
 
             // Переменные
             let xrHelper;
+            let xrHitTest;
             let hitTestAvailable = false;
             let reticleMesh;
+            let userModel = null;
             let modelContainer = new BABYLON.TransformNode('modelContainer');
-            let userModel; // загруженная модель
             let placedObjects = [];
+            let modelLoaded = false;
 
             // --- Загрузка модели (твоя) ---
             BABYLON.SceneLoader.ImportMeshAsync('', '', 'textured_mesh.glb', scene).then(result => {
                 userModel = result.meshes[0];
                 userModel.setParent(modelContainer);
                 userModel.scaling.scaleInPlace(0.2); // подбери масштаб
-                userModel.setEnabled(false); // пока не размещаем
+                userModel.setEnabled(false);
+                modelLoaded = true;
                 console.log('Модель загружена');
             }).catch(err => {
                 console.error('Ошибка загрузки модели:', err);
@@ -157,9 +160,6 @@
             reticleMesh.rotation.x = Math.PI / 2; // лежит горизонтально
             reticleMesh.setEnabled(false);
 
-            // --- WebXR Helper ---
-            const xrHelperPromise = BABYLON.WebXRHelper.InitializeAsync(scene);
-
             // --- UI элементы ---
             const infoDiv = document.getElementById('info');
             const arButton = document.getElementById('arButton');
@@ -170,53 +170,50 @@
 
             // --- Запуск AR по кнопке ---
             arButton.addEventListener('click', async () => {
+                if (!modelLoaded) {
+                    infoDiv.innerHTML = '⏳ Модель ещё загружается...';
+                    return;
+                }
                 try {
                     if (!xrHelper) {
-                        xrHelper = await xrHelperPromise;
-                    }
+                        // Создаём XR-опыт
+                        xrHelper = await BABYLON.WebXRDefaultExperience.CreateAsync(scene, {
+                            optionalFeatures: true,
+                            uiOptions: {
+                                sessionMode: 'immersive-ar',
+                                referenceSpaceType: 'local-floor'
+                            }
+                        });
 
-                    // Настройки сессии immersive-ar с hit test
-                    const xrOptions = {
-                        optionalFeatures: ['hit-test'],
-                        onError: (error) => {
-                            console.error('XR error:', error);
-                            infoDiv.innerHTML = '❌ Ошибка AR';
-                        }
-                    };
-
-                    // Запуск сессии
-                    await xrHelper.enterXRAsync('immersive-ar', 'unbounded', xrOptions);
-                    infoDiv.innerHTML = '🔍 Ищу поверхность...';
-
-                    // Обработка hit test
-                    xrHelper.featuresManager.enableFeature('hit-test', 'latest', {
-                        enablePermanentHitTest: true,
-                        doNotRemoveDuplicateResults: true
-                    });
-
-                    const hitTest = xrHelper.getFeature('hit-test');
-                    if (hitTest) {
-                        hitTest.onHitTestResultObservable.add((results) => {
-                            if (results.length && userModel) {
-                                const pose = results[0].pose;
-                                if (pose) {
-                                    reticleMesh.setEnabled(true);
-                                    reticleMesh.position.copyFrom(pose.position);
-                                    reticleMesh.rotationQuaternion = pose.rotationQuaternion;
-                                    hitTestAvailable = true;
-                                    infoDiv.innerHTML = '✨ Коснись для размещения';
+                        // Включаем hit test
+                        xrHitTest = xrHelper.featuresManager.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, 'latest');
+                        if (xrHitTest) {
+                            xrHitTest.onHitTestResultObservable.add((results) => {
+                                if (results.length && userModel) {
+                                    const pose = results[0].pose;
+                                    if (pose) {
+                                        reticleMesh.setEnabled(true);
+                                        reticleMesh.position.copyFrom(pose.position);
+                                        reticleMesh.rotationQuaternion = pose.rotationQuaternion;
+                                        hitTestAvailable = true;
+                                        infoDiv.innerHTML = '✨ Коснись для размещения';
+                                    } else {
+                                        reticleMesh.setEnabled(false);
+                                        hitTestAvailable = false;
+                                    }
                                 } else {
                                     reticleMesh.setEnabled(false);
                                     hitTestAvailable = false;
                                 }
-                            } else {
-                                reticleMesh.setEnabled(false);
-                                hitTestAvailable = false;
-                            }
-                        });
+                            });
+                        }
                     }
 
-                    // Обработка касания (select) для размещения
+                    // Запуск сессии
+                    await xrHelper.enterXRAsync('immersive-ar', 'unbounded');
+                    infoDiv.innerHTML = '🔍 Ищу поверхность...';
+
+                    // Обработка касания для размещения
                     xrHelper.input.onSelectEndedObservable.add(() => {
                         if (hitTestAvailable && reticleMesh.isEnabled() && userModel) {
                             // Клонируем модель и ставим в позицию прицела
@@ -253,13 +250,9 @@
             // --- PHOTO в предпросмотре (скриншот сцены) ---
             photoButton.addEventListener('click', () => {
                 infoDiv.innerHTML = '📸 Снимок...';
-                // Простой способ: захват canvas
                 try {
-                    const dataURL = canvas.toDataURL('image/png');
-                    const link = document.createElement('a');
-                    link.download = 'preview.png';
-                    link.href = dataURL;
-                    link.click();
+                    // Используем встроенную функцию Babylon для скриншота
+                    BABYLON.Tools.CreateScreenshot(engine, camera, { width: 1024 });
                     infoDiv.innerHTML = '⚡ Нажми AR, затем коснись для размещения';
                 } catch (e) {
                     console.error(e);
