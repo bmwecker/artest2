@@ -2,9 +2,11 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>AR кастомная кнопка</title>
+    <title>AR с 8th Wall и Three.js</title>
+    <!-- Подключаем Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="./xr.js" async data-preload-chunks="slam"></script>
+    <!-- Подключаем локальный движок 8th Wall -->
+    <script async src="./xr.js" data-preload-chunks="slam"></script>
     <style>
         body { margin: 0; overflow: hidden; background: black; color: #FCD780; font-family: system-ui; }
         #info {
@@ -18,83 +20,48 @@
             padding: 20px 40px; font-size: 36px; font-weight: bold; z-index: 1000;
             cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        #canvas { width: 100vw; height: 100vh; display: block; }
+        #site-link {
+            position: fixed; top: 120px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+            border: 2px solid #FCD780; border-radius: 80px;
+            padding: 16px 40px; color: #FCD780; font-size: 28px;
+            text-decoration: none; z-index: 1000; white-space: nowrap;
+        }
+        #musicButton {
+            position: fixed; bottom: 60px; right: 60px; width: 80px; height: 80px;
+            border-radius: 50%; background: rgba(0,0,0,0.7); border: 2px solid #FCD780;
+            color: #FCD780; font-size: 40px; cursor: pointer; z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #musicButton.music-on { background: rgba(252,215,128,0.2); border-color: #FCD780; }
+        canvas { width: 100vw; height: 100vh; display: block; }
     </style>
 </head>
 <body>
-    <div id="info">⚡ Нажми СТАРТ AR</div>
+    <div id="info">⚡ Нажми СТАРТ AR, затем коснись для размещения</div>
+    <a id="site-link" href="https://alef-bet.tech" target="_blank">🔗 Alef-Bet</a>
     <button id="arButton">🚀 СТАРТ AR</button>
-    <canvas id="canvas"></canvas>
+    <div id="musicButton" class="music-off">🔇</div>
 
     <script>
-        let scene, camera, renderer, reticle, model;
-        let hitTestSource, xrRefSpace;
-
         window.addEventListener('xrloaded', () => {
             console.log('✅ XR8 загружен');
         });
 
-        document.getElementById('arButton').addEventListener('click', async () => {
-            if (!window.XR8) return alert('Движок не загружен');
+        // --- Глобальные переменные Three.js ---
+        let scene, camera, renderer, reticle, model;
+        let hitTestAvailable = false;
 
-            // --- Three.js инициализация ---
-            initThree();
-
-            // --- Запуск XR8 ---
-            try {
-                await XR8.run({
-                    canvas: document.getElementById('canvas'),
-                    verbose: true,
-                    allowedDevices: XR8.XrConfig.device().ANY,
-                    cameraConfig: { direction: XR8.XrConfig.camera().BACK }
-                });
-
-                // --- Добавляем модуль рендеринга камеры и XrController ---
-                XR8.addCameraPipelineModule(XR8.GlTextureRenderer.pipelineModule());
-                await XR8.loadChunk('slam');
-                XR8.addCameraPipelineModule(XR8.XrController.pipelineModule());
-
-                // --- Ждём, пока появится видео ---
-                XR8.addCameraPipelineModule({
-                    name: 'custom-hit-test',
-                    onCameraStatusChange: ({ status, video }) => {
-                        if (status === 'hasVideo') {
-                            console.log('Видео получено, начинаем hit test');
-                            startHitTest();
-                        }
-                    },
-                    onUpdate: ({ processCpuResult }) => {
-                        const reality = processCpuResult.reality;
-                        if (!reality) return;
-
-                        // Обновляем прицел (если есть hit test)
-                        if (reality.hitTest) {
-                            const pose = reality.hitTest;
-                            reticle.visible = true;
-                            reticle.position.copy(pose.position);
-                            reticle.quaternion.copy(pose.rotation);
-                        } else {
-                            reticle.visible = false;
-                        }
-                    },
-                    onRender: () => {
-                        renderer.render(scene, camera);
-                    }
-                });
-
-            } catch (e) {
-                console.error('Ошибка запуска AR:', e);
-            }
-        });
-
+        // --- Инициализация Three.js ---
         function initThree() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), alpha: true });
+            renderer = new THREE.WebGLRenderer({ alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement); // добавляем canvas на страницу
 
-            // Прицел
+            // Прицел (золотой тор)
             reticle = new THREE.Mesh(
                 new THREE.TorusGeometry(0.1, 0.01, 16, 32),
                 new THREE.MeshStandardMaterial({ color: 0xFCD780, emissive: 0x332200 })
@@ -107,19 +74,122 @@
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             scene.add(light);
 
-            // Заглушка модели (куб)
+            // Временно создадим простую модель (красный куб) для теста
+            // Позже замените на загрузку вашей textured_mesh.glb
             const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-            const material = new THREE.MeshStandardMaterial({ color: 0xFCD780 });
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
             model = new THREE.Mesh(geometry, material);
             model.visible = false;
             scene.add(model);
         }
 
-        function startHitTest() {
-            // Здесь можно добавить запрос hit test через XR8.XrController.hitTest
-            // Но лучше использовать модуль XrController, который сам выдаёт результаты в processCpuResult.reality.hitTest
-            console.log('Hit test активен');
+        // --- Загрузка GLB-модели (замените на свой файл) ---
+        function loadModel() {
+            const loader = new THREE.GLTFLoader();
+            loader.load('textured_mesh.glb', (gltf) => {
+                scene.remove(model); // убираем временный куб
+                model = gltf.scene;
+                model.scale.set(0.2, 0.2, 0.2);
+                model.visible = false;
+                scene.add(model);
+            }, undefined, (error) => {
+                console.error('Ошибка загрузки модели:', error);
+            });
         }
+
+        // --- Музыка ---
+        const musicButton = document.getElementById('musicButton');
+        const audio = new Audio('music.mp3');
+        audio.loop = true;
+        musicButton.addEventListener('click', () => {
+            if (musicButton.classList.contains('music-off')) {
+                audio.play().catch(e => console.warn('Music play failed:', e));
+                musicButton.classList.remove('music-off');
+                musicButton.classList.add('music-on');
+                musicButton.innerHTML = '🔊';
+            } else {
+                audio.pause();
+                musicButton.classList.remove('music-on');
+                musicButton.classList.add('music-off');
+                musicButton.innerHTML = '🔇';
+            }
+        });
+
+        // --- Запуск AR по кнопке ---
+        document.getElementById('arButton').addEventListener('click', async () => {
+            if (!window.XR8) {
+                alert('Движок ещё не загружен');
+                return;
+            }
+
+            initThree();
+            // Если есть GLTFLoader, загружаем модель (раскомментируйте при необходимости)
+            // if (THREE.GLTFLoader) loadModel();
+
+            // Добавляем необходимые модули в pipeline
+            XR8.addCameraPipelineModules([
+                XR8.GlTextureRenderer.pipelineModule(), // рендеринг камеры
+                XR8.XrController.pipelineModule()       // трекинг и hit-test
+            ]);
+
+            // Настраиваем XrController (опционально)
+            XR8.XrController.configure({ enableLighting: false });
+
+            // Запускаем сессию
+            try {
+                await XR8.run({
+                    canvas: renderer.domElement, // используем canvas от Three.js
+                    verbose: true,
+                    allowedDevices: XR8.XrConfig.device().ANY,
+                    cameraConfig: { direction: XR8.XrConfig.camera().BACK }
+                });
+
+                console.log('AR сессия запущена');
+
+                // Получаем reference space (нужен для hit test)
+                // В 8th Wall reference space доступен через XR8.XrController
+                // Но hitTestSource будем получать через XR8.XrController.hitTest() прямо в кадре
+
+                // Запускаем цикл рендеринга
+                function onXRFrame() {
+                    // Получаем результаты hit test (центр экрана)
+                    const hitTestResults = XR8.XrController.hitTest(0.5, 0.5, ['FEATURE_POINT']);
+                    if (hitTestResults.length > 0) {
+                        const pose = hitTestResults[0];
+                        reticle.position.copy(pose.position);
+                        reticle.quaternion.copy(pose.rotation);
+                        reticle.visible = true;
+                        hitTestAvailable = true;
+                        document.getElementById('info').innerHTML = '✨ Коснись для размещения';
+                    } else {
+                        reticle.visible = false;
+                        hitTestAvailable = false;
+                    }
+
+                    // Рендерим сцену
+                    renderer.render(scene, camera);
+
+                    // Запрашиваем следующий кадр
+                    requestAnimationFrame(onXRFrame);
+                }
+                onXRFrame();
+
+                // Обработка касания экрана для размещения модели
+                renderer.domElement.addEventListener('click', () => {
+                    if (hitTestAvailable && model) {
+                        const newModel = model.clone();
+                        newModel.position.copy(reticle.position);
+                        newModel.quaternion.copy(reticle.quaternion);
+                        newModel.visible = true;
+                        scene.add(newModel);
+                        document.getElementById('info').innerHTML = '✅ Объект размещён';
+                    }
+                });
+
+            } catch (e) {
+                console.error('Ошибка запуска AR:', e);
+            }
+        });
     </script>
 </body>
 </html>
